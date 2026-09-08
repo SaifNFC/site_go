@@ -1,0 +1,26 @@
+### Ajouter à la watchlist - sans token (401 attendu)
+POST {{host}}/films/{{filmId}}/watchlist
+
+### Ajouter à la watchlist
+POST {{host}}/films/{{filmId}}/watchlist
+Authorization: Bearer {{token}}
+
+### Ajouter le même film - idempotent (204 attendu, pas d'erreur)
+POST {{host}}/films/{{filmId}}/watchlist
+Authorization: Bearer {{token}}
+
+### Ajouter un film inexistant (404 attendu)
+POST {{host}}/films/999999/watchlist
+Authorization: Bearer {{token}}
+
+### Lister ma watchlist
+GET {{host}}/me/watchlist
+Authorization: Bearer {{token}}
+
+### Retirer de la watchlist
+DELETE {{host}}/films/{{filmId}}/watchlist
+Authorization: Bearer {{token}}
+
+### Retirer un film déjà absent (404 attendu)
+DELETE {{host}}/films/{{filmId}}/watchlist
+Authorization: Bearer {{token}}

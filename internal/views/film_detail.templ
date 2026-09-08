@@ -1,0 +1,33 @@
+package views
+
+import (
+	"strconv"
+
+	"demo/internal/models"
+)
+
+templ FilmDetailPage(film *models.Film) {
+	@Layout(film.Titre) {
+		<article class="film-detail">
+			if film.PosterURL != "" {
+				<img src={ film.PosterURL } alt={ film.Titre }/>
+			}
+			<div>
+				<h1>{ film.Titre }</h1>
+				if film.Annee > 0 {
+					<p class="film-year">{ strconv.Itoa(film.Annee) }</p>
+				}
+				if film.Synopsis != "" {
+					<p>{ film.Synopsis }</p>
+				}
+			</div>
+		</article>
+	}
+}
+
+templ FilmNotFoundPage() {
+	@Layout("Film introuvable") {
+		<h1>Film introuvable</h1>
+		<p><a href="/">← Retour à la liste</a></p>
+	}
+}

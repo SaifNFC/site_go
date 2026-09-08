@@ -1,0 +1,26 @@
+package views
+
+templ Layout(title string) {
+	<!DOCTYPE html>
+	<html lang="fr">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>{ title } · Letterboxd Clone</title>
+			<link rel="stylesheet" href="/static/css/pico.min.css"/>
+			<link rel="stylesheet" href="/static/css/style.css"/>
+		</head>
+		<body>
+			<header class="container">
+				<nav>
+					<ul>
+						<li><a href="/"><strong>Letterboxd Clone</strong></a></li>
+					</ul>
+				</nav>
+			</header>
+			<main class="container">
+				{ children... }
+			</main>
+		</body>
+	</html>
+}

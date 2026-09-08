@@ -1,0 +1,6 @@
+.env
+*_templ.go
+/api
+/bin/
+.idea/
+.claude/

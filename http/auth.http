@@ -1,0 +1,51 @@
+### Health check
+GET {{host}}/health
+
+### Register
+# @name register
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "password123"
+}
+
+### Login
+# @name login
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "password123"
+}
+
+> {%
+    client.global.set("token", response.body.token);
+%}
+
+### Me - sans token (401 attendu)
+GET {{host}}/me
+
+### Me - avec token
+GET {{host}}/me
+Authorization: Bearer {{token}}
+
+### Register - email déjà utilisé (409 attendu)
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "password123"
+}
+
+### Login - mauvais mot de passe (401 attendu)
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "wrongpassword"
+}

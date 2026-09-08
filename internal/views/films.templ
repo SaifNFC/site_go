@@ -1,0 +1,36 @@
+package views
+
+import (
+	"strconv"
+
+	"demo/internal/models"
+)
+
+func filmURL(id uint) string {
+	return "/films/" + strconv.FormatUint(uint64(id), 10) + "/view"
+}
+
+templ FilmsPage(films []models.Film) {
+	@Layout("Films") {
+		<h1>Films</h1>
+		if len(films) == 0 {
+			<p class="empty">Aucun film pour l'instant.</p>
+		} else {
+			<div class="film-grid">
+				for _, film := range films {
+					<article>
+						<a href={ templ.URL(filmURL(film.ID)) }>
+							if film.PosterURL != "" {
+								<img src={ film.PosterURL } alt={ film.Titre }/>
+							}
+							<h2>{ film.Titre }</h2>
+							if film.Annee > 0 {
+								<p class="film-year">{ strconv.Itoa(film.Annee) }</p>
+							}
+						</a>
+					</article>
+				}
+			</div>
+		}
+	}
+}

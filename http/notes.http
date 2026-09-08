@@ -1,0 +1,62 @@
+### Noter un film - sans token (401 attendu)
+PUT {{host}}/films/{{filmId}}/note
+Content-Type: application/json
+
+{
+  "note": 8,
+  "commentaire": "top"
+}
+
+### Noter un film (création)
+PUT {{host}}/films/{{filmId}}/note
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "note": 8,
+  "commentaire": "top"
+}
+
+### Renoter le même film (upsert - remplace la note précédente)
+PUT {{host}}/films/{{filmId}}/note
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "note": 9,
+  "commentaire": "encore mieux au 2e visionnage"
+}
+
+### Note invalide - hors bornes (400 attendu)
+PUT {{host}}/films/{{filmId}}/note
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "note": 15
+}
+
+### Noter un film inexistant (404 attendu)
+PUT {{host}}/films/999999/note
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "note": 5
+}
+
+### Récupérer ma note sur ce film
+GET {{host}}/films/{{filmId}}/note
+Authorization: Bearer {{token}}
+
+### Lister toutes mes notes
+GET {{host}}/me/notes
+Authorization: Bearer {{token}}
+
+### Supprimer ma note
+DELETE {{host}}/films/{{filmId}}/note
+Authorization: Bearer {{token}}
+
+### Récupérer ma note après suppression (404 attendu)
+GET {{host}}/films/{{filmId}}/note
+Authorization: Bearer {{token}}

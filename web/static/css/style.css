@@ -1,0 +1,52 @@
+/* Surcharges minimales par-dessus Pico.css */
+
+.film-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+	gap: var(--pico-spacing);
+}
+
+.film-grid article {
+	margin: 0;
+	overflow: hidden;
+}
+
+.film-grid img {
+	width: 100%;
+	aspect-ratio: 2 / 3;
+	object-fit: cover;
+	display: block;
+}
+
+.film-grid h2 {
+	font-size: 0.95rem;
+	margin: var(--pico-spacing) var(--pico-spacing) 0;
+}
+
+.film-year {
+	color: var(--pico-muted-color);
+	font-size: 0.85rem;
+	margin: 0.25rem var(--pico-spacing) var(--pico-spacing);
+}
+
+.film-grid a {
+	color: inherit;
+	text-decoration: none;
+}
+
+.film-detail {
+	display: grid;
+	grid-template-columns: minmax(200px, 300px) 1fr;
+	gap: var(--pico-spacing) calc(var(--pico-spacing) * 2);
+}
+
+.film-detail img {
+	width: 100%;
+	border-radius: var(--pico-border-radius);
+}
+
+@media (max-width: 600px) {
+	.film-detail {
+		grid-template-columns: 1fr;
+	}
+}

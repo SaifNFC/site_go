@@ -1,0 +1,67 @@
+### Liste des films (public)
+GET {{host}}/films?page=1&limit=20
+
+### Créer un film (protégé - nécessite d'avoir joué auth.http/login avant)
+# @name createFilm
+POST {{host}}/films
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "tmdb_id": 603,
+  "titre": "The Matrix",
+  "annee": 1999,
+  "poster_url": "",
+  "synopsis": "Un hacker découvre la vérité sur la réalité."
+}
+
+> {%
+    client.global.set("filmId", response.body.ID);
+%}
+
+### Récupérer un film par id
+@filmId = 2
+GET {{host}}/films/{{filmId}}
+
+### Récupérer un film inexistant (404 attendu)
+GET {{host}}/films/999999
+
+### Créer un film - tmdb_id déjà utilisé (409 attendu)
+POST {{host}}/films
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "tmdb_id": 603,
+  "titre": "Doublon",
+  "annee": 2000
+}
+
+### Créer un film - sans token (401 attendu)
+POST {{host}}/films
+Content-Type: application/json
+
+{
+  "tmdb_id": 604,
+  "titre": "Sans auth",
+  "annee": 2000
+}
+
+### Mettre à jour un film
+PUT {{host}}/films/{{filmId}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "tmdb_id": 603,
+  "titre": "The Matrix (updated)",
+  "annee": 1999,
+  "synopsis": "Synopsis mis à jour"
+}
+
+### Supprimer un film
+DELETE {{host}}/films/{{filmId}}
+Authorization: Bearer {{token}}
+
+### Récupérer le film supprimé (404 attendu)
+GET {{host}}/films/{{filmId}}
