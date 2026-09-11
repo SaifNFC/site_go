@@ -4,3 +4,4 @@
 /bin/
 .idea/
 .claude/
+deployments/kubernetes/secret.yaml
