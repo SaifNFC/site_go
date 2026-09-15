@@ -39,11 +39,11 @@ logs-sync: ## Suit uniquement les logs du conteneur tmdb-sync
 ps: ## Liste les conteneurs du projet
 	$(COMPOSE) ps
 
-k8s-image: ## Build l'image de l'API dans le registre Docker de Minikube
-	eval $$(minikube docker-env) && docker build -t letterboxd-clone:latest -f deployments/docker/Dockerfile .
+k8s-image: ## Build l'image de l'API directement dans le runtime containerd de Minikube
+	minikube image build -t letterboxd-clone:latest -f deployments/docker/Dockerfile .
 
-k8s-image-sync: ## Build l'image du microservice tmdb-sync dans le registre Docker de Minikube
-	eval $$(minikube docker-env) && docker build -t tmdb-sync:latest -f deployments/docker/Dockerfile.tmdb-sync .
+k8s-image-sync: ## Build l'image du microservice tmdb-sync directement dans le runtime containerd de Minikube
+	minikube image build -t tmdb-sync:latest -f deployments/docker/Dockerfile.tmdb-sync .
 
 k8s-apply: ## Déploie l'API et le microservice tmdb-sync (configmaps/secret/deployments/services) sur le cluster courant
 	@test -f $(K8S)/secret.yaml || (echo "Manque $(K8S)/secret.yaml — copie $(K8S)/secret.example.yaml et remplis-le" && exit 1)
