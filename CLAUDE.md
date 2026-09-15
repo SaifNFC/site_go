@@ -22,6 +22,7 @@ Objectifs pédagogiques du projet (à garder en tête pour les suggestions) :
 | Auth | JWT |
 | API externe | TMDB (peuplement du catalogue de films) |
 | Conteneurisation | Docker (multi-stage build, image finale distroless non-root) |
+| Architecture | API monolithique Gin + microservice `tmdb-sync` (test du pattern microservices sur K8s : service indépendant, appelé via DNS interne `http://tmdb-sync`) |
 | Orchestration | Kubernetes (Minikube en local, driver Docker / runtime containerd) |
 | Automatisation déploiement | Ansible (prévu, pas encore fait — module `kubernetes.core.k8s`) |
 | CI | GitHub Actions ou GitLab CI + `golangci-lint` (pas encore fait) |
@@ -34,10 +35,11 @@ Objectifs pédagogiques du projet (à garder en tête pour les suggestions) :
 - Front HTML server-side (`templ` + Pico.css) : liste des films (`/`) et détail (`/films/:id/view`)
 - Docker multi-stage (build `templ generate` + binaire + assets statiques dans l'image finale)
 - Manifests Kubernetes (`deployments/kubernetes/`) testés sur Minikube : Deployment (probes, resources, securityContext non-root avec `runAsUser: 65532`), Service ClusterIP, ConfigMap, Secret (pattern `secret.example.yaml` committé / `secret.yaml` gitignoré, comme `.env`/`.env.example`)
+- Microservice `tmdb-sync` (`cmd/tmdb-sync`) : extraction du sync TMDB en second service Go/Gin autonome (`internal/services/sync_service.go`, upsert TMDB→DB), déployé indépendamment (Dockerfile dédié, ConfigMap/Deployment/Service K8s dédiés, réutilise le Secret existant), appelé depuis l'API principale (`POST /admin/films/:tmdb_id/sync`, protégé JWT) via un client HTTP interne (`internal/tmdbsync`) pointant sur `TMDB_SYNC_URL` — testé en local (binaires natifs + via le conteneur Docker de l'API grâce à `host.docker.internal`) et prêt pour test sur Minikube (DNS interne `http://tmdb-sync`)
 - Repo poussé sur GitHub (`SaifNFC/site_go`, compte perso — identité git configurée en local au repo uniquement, cf. machine pro avec config GitLab globale)
 
 **Pas fait :**
-- Service de sync TMDB (le client HTTP existe, pas d'orchestration pour peupler le catalogue)
+- Test du microservice `tmdb-sync` sur Minikube (validé en local/Docker, pas encore déployé sur le cluster)
 - Tests unitaires sur la couche services (seulement un test sur le client TMDB)
 - Pages HTML login/register (JSON endpoints déjà là, pas de vue)
 - CI (lint/test/build automatisés)
@@ -48,32 +50,39 @@ Objectifs pédagogiques du projet (à garder en tête pour les suggestions) :
 ```
 .
 ├── cmd/
-│   └── api/
+│   ├── api/
+│   │   └── main.go
+│   └── tmdb-sync/         # microservice de sync TMDB, service Gin autonome
 │       └── main.go
 ├── internal/
-│   ├── config/          # chargement config (env vars, .env)
-│   ├── database/        # connexion GORM, migrations
+│   ├── config/          # chargement config (env vars, .env), partagé par les deux binaires
+│   ├── database/        # connexion GORM, migrations (migrations lancées uniquement par l'API principale)
 │   ├── models/           # entités GORM (User, Film, Note, Watchlist)
-│   ├── handlers/          # handlers Gin (controllers) + page_handler.go (vues HTML)
+│   ├── handlers/          # handlers Gin (controllers) + page_handler.go (vues HTML) + sync_handler.go
 │   ├── middleware/        # auth JWT, logging, recovery
 │   ├── repository/        # couche accès données (si séparée des handlers)
-│   ├── services/           # logique métier (ex: sync TMDB)
-│   ├── tmdb/               # client API TMDB
+│   ├── services/           # logique métier (ex: sync_service.go, utilisé par tmdb-sync)
+│   ├── tmdb/               # client API TMDB (utilisé par tmdb-sync)
+│   ├── tmdbsync/           # client HTTP interne API principale -> microservice tmdb-sync
 │   └── views/              # composants templ (.templ + .go générés, gitignorés)
 ├── web/
 │   └── static/            # CSS (Pico.css auto-hébergé) servi via router.Static
 ├── migrations/            # si golang-migrate utilisé en plus d'AutoMigrate (pas encore fait)
 ├── deployments/
 │   ├── docker/
-│   │   └── Dockerfile
+│   │   ├── Dockerfile
+│   │   └── Dockerfile.tmdb-sync
 │   ├── kubernetes/
 │   │   ├── deployment.yaml
 │   │   ├── service.yaml
 │   │   ├── configmap.yaml
 │   │   ├── secret.example.yaml  # template committé
-│   │   └── secret.yaml          # vraies valeurs, gitignoré
-│   └── docker-compose.yml
-├── http/                  # fichiers .http pour tester manuellement chaque domaine
+│   │   ├── secret.yaml          # vraies valeurs, gitignoré
+│   │   ├── tmdb-sync-deployment.yaml
+│   │   ├── tmdb-sync-service.yaml
+│   │   └── tmdb-sync-configmap.yaml
+│   └── docker-compose.yml   # service api uniquement ; tmdb-sync se lance en local (host.docker.internal)
+├── http/                  # fichiers .http pour tester manuellement chaque domaine (dont sync.http)
 ├── .github/workflows/ (ou .gitlab-ci.yml)  # pas encore fait
 ├── go.mod
 ├── go.sum
@@ -107,11 +116,14 @@ make test
 make up / make down / make logs
 
 # Kubernetes (sur un cluster Minikube déjà démarré : `minikube start --driver=docker`)
-make k8s-image          # build l'image dans le docker daemon de Minikube
-make k8s-apply          # applique configmap/secret/deployment/service
-make k8s-status         # état des pods/deployment/service
-make k8s-logs           # logs du pod
-make k8s-port-forward   # expose le service sur http://localhost:8081
+make k8s-image          # build l'image de l'API dans le docker daemon de Minikube
+make k8s-image-sync     # build l'image du microservice tmdb-sync
+make k8s-apply          # applique configmaps/secret/deployments/services (API + tmdb-sync)
+make k8s-status         # état des pods/deployment/service de l'API
+make k8s-status-sync    # état des pods/deployment/service de tmdb-sync
+make k8s-logs           # logs du pod de l'API
+make k8s-logs-sync      # logs du pod tmdb-sync
+make k8s-port-forward   # expose le service API sur http://localhost:8081
 ```
 
 ## Notes pour Claude Code
