@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: tmdb-sync
+  labels:
+    app: tmdb-sync
+spec:
+  type: ClusterIP
+  selector:
+    app: tmdb-sync
+  ports:
+    - port: 80
+      targetPort: 8082

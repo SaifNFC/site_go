@@ -1,0 +1,31 @@
+### Synchro film via l'API principale (protégé - jouer auth.http/login avant)
+# API principale -> appel HTTP interne -> microservice tmdb-sync -> TMDB -> upsert DB
+# 550 = Fight Club
+POST {{host}}/admin/films/603/sync
+Authorization: Bearer {{token}}
+
+### Re-synchro du même film (upsert attendu, même ID en retour)
+POST {{host}}/admin/films/550/sync
+Authorization: Bearer {{token}}
+
+### Synchro - sans token (401 attendu)
+POST {{host}}/admin/films/550/sync
+
+### Synchro - tmdb_id inexistant sur TMDB (404 attendu)
+POST {{host}}/admin/films/999999999/sync
+Authorization: Bearer {{token}}
+
+### Synchro - tmdb_id invalide (400 attendu)
+POST {{host}}/admin/films/abc/sync
+Authorization: Bearer {{token}}
+
+###
+### Appel direct au microservice tmdb-sync (hors API principale, pour tester son isolation)
+### Local : lancer `PORT=8082 go run ./cmd/tmdb-sync` en parallèle de l'API
+### K8s   : `kubectl port-forward svc/tmdb-sync 8082:80` puis utiliser les mêmes requêtes
+
+### Health check tmdb-sync
+GET {{tmdbSyncHost}}/health
+
+### Synchro directe
+POST {{tmdbSyncHost}}/sync/550

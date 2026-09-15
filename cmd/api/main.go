@@ -12,6 +12,7 @@ import (
 	"demo/internal/middleware"
 	"demo/internal/repository"
 	"demo/internal/services"
+	"demo/internal/tmdbsync"
 )
 
 func main() {
@@ -57,6 +58,9 @@ func main() {
 
 	pageHandler := handlers.NewPageHandler(filmService)
 
+	syncClient := tmdbsync.NewClient(cfg.TMDBSyncURL)
+	syncHandler := handlers.NewSyncHandler(syncClient)
+
 	router := gin.Default()
 
 	router.Static("/static", "./web/static")
@@ -94,6 +98,8 @@ func main() {
 	protected.POST("/films/:id/watchlist", watchlistHandler.Add)
 	protected.DELETE("/films/:id/watchlist", watchlistHandler.Remove)
 	protected.GET("/me/watchlist", watchlistHandler.List)
+
+	protected.POST("/admin/films/:tmdb_id/sync", syncHandler.SyncFilm)
 
 	router.Run(":" + cfg.Port)
 }

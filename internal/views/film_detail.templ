@@ -10,7 +10,7 @@ templ FilmDetailPage(film *models.Film) {
 	@Layout(film.Titre) {
 		<article class="film-detail">
 			if film.PosterURL != "" {
-				<img src={ film.PosterURL } alt={ film.Titre }/>
+				<img src={ posterURL(film.PosterURL) } alt={ film.Titre }/>
 			}
 			<div>
 				<h1>{ film.Titre }</h1>

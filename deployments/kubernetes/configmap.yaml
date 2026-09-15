@@ -6,3 +6,4 @@ metadata:
     app: letterboxd-api
 data:
   PORT: "8081"
+  TMDB_SYNC_URL: "http://tmdb-sync"

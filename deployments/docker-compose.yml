@@ -5,6 +5,24 @@ services:
       dockerfile: deployments/docker/Dockerfile
     env_file:
       - ../.env
+    environment:
+      # tmdb-sync tourne dans le conteneur `tmdb-sync` ci-dessous, joignable par
+      # son nom de service sur le réseau compose (résolution DNS interne Docker)
+      - TMDB_SYNC_URL=http://tmdb-sync:8082
     ports:
       - "${PORT:-8081}:8081"
+    restart: unless-stopped
+    depends_on:
+      - tmdb-sync
+
+  tmdb-sync:
+    build:
+      context: ..
+      dockerfile: deployments/docker/Dockerfile.tmdb-sync
+    env_file:
+      - ../.env
+    environment:
+      - PORT=8082
+    ports:
+      - "8082:8082"
     restart: unless-stopped

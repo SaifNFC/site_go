@@ -12,6 +12,7 @@ type Config struct {
 	DatabaseURL string
 	JWTSecret   string
 	TMDBAPIKey  string
+	TMDBSyncURL string
 }
 
 func Load() (*Config, error) {
@@ -32,10 +33,16 @@ func Load() (*Config, error) {
 		port = "8080"
 	}
 
+	tmdbSyncURL := os.Getenv("TMDB_SYNC_URL")
+	if tmdbSyncURL == "" {
+		tmdbSyncURL = "http://localhost:8082"
+	}
+
 	return &Config{
 		Port:        port,
 		DatabaseURL: databaseURL,
 		JWTSecret:   jwtSecret,
 		TMDBAPIKey:  os.Getenv("TMDB_API_KEY"),
+		TMDBSyncURL: tmdbSyncURL,
 	}, nil
 }

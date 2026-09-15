@@ -10,6 +10,14 @@ func filmURL(id uint) string {
 	return "/films/" + strconv.FormatUint(uint64(id), 10) + "/view"
 }
 
+const tmdbImageBaseURL = "https://image.tmdb.org/t/p/w500"
+
+// posterURL construit l'URL complète d'une affiche à partir du chemin relatif
+// renvoyé par TMDB (ex: "/t1i10ptOivG4hV7erkX3tmKpiqm.jpg").
+func posterURL(path string) string {
+	return tmdbImageBaseURL + path
+}
+
 templ FilmsPage(films []models.Film) {
 	@Layout("Films") {
 		<h1>Films</h1>
@@ -21,7 +29,7 @@ templ FilmsPage(films []models.Film) {
 					<article>
 						<a href={ templ.URL(filmURL(film.ID)) }>
 							if film.PosterURL != "" {
-								<img src={ film.PosterURL } alt={ film.Titre }/>
+								<img src={ posterURL(film.PosterURL) } alt={ film.Titre }/>
 							}
 							<h2>{ film.Titre }</h2>
 							if film.Annee > 0 {
