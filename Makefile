@@ -4,7 +4,9 @@ K8S = deployments/kubernetes
 
 .PHONY: run build test lint up down logs logs-sync ps templ templ-watch \
 	k8s-image k8s-image-sync k8s-apply k8s-delete k8s-status k8s-logs k8s-port-forward \
-	k8s-status-sync k8s-logs-sync
+	k8s-status-sync k8s-logs-sync \
+	ansible-setup ansible-deploy \
+	semaphore-setup semaphore-up semaphore-down semaphore-logs
 
 templ: ## Génère le code Go à partir des fichiers .templ
 	$(TEMPL) generate
@@ -68,3 +70,30 @@ k8s-logs-sync: ## Suit les logs du pod tmdb-sync
 
 k8s-port-forward: ## Expose le service API en local sur http://localhost:8081
 	kubectl port-forward svc/letterboxd-api 8081:80
+
+ansible-setup: ## Installe ansible/python3-kubernetes (sudo, 1 fois) + la collection kubernetes.core
+	sudo apt install -y ansible python3-kubernetes
+	ansible-galaxy collection install -r ansible/requirements.yml
+
+ansible-deploy: ## Déploie l'API + tmdb-sync via Ansible (kubernetes.core.k8s)
+	ansible-playbook ansible/deploy.yml
+
+semaphore-setup: ## Installe le binaire Semaphore (.deb, sudo, 1 fois) — lance ensuite le wizard toi-même
+	curl -fsSL -o /tmp/semaphore.deb https://github.com/semaphoreui/semaphore/releases/download/v2.19.12/semaphore_community_2.19.12_linux_amd64.deb
+	sudo apt install -y /tmp/semaphore.deb
+	rm /tmp/semaphore.deb
+	mkdir -p ansible/semaphore
+	@echo "Lance maintenant : cd ansible/semaphore && semaphore setup"
+	@echo "(pas via make — le wizard interactif bug avec le buffering stdin de make)"
+	@echo "Choisis SQLite (option 4) comme base. Puis crée l'admin avec :"
+	@echo "  semaphore user add --config=config.json --admin --login=<toi> --email=<toi> --name=<toi> --password=<toi>"
+
+semaphore-up: ## Démarre Semaphore comme service utilisateur sur http://localhost:3000
+	systemctl --user daemon-reload
+	systemctl --user enable --now semaphore.service
+
+semaphore-down: ## Arrête le service Semaphore
+	systemctl --user disable --now semaphore.service
+
+semaphore-logs: ## Suit les logs du service Semaphore
+	journalctl --user -u semaphore.service -f

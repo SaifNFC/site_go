@@ -1,0 +1,33 @@
+---
+- name: Déploie letterboxd-api et tmdb-sync sur le cluster K8s courant
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    k8s_dir: "{{ playbook_dir }}/../deployments/kubernetes"
+
+  tasks:
+    - name: Vérifie que le secret local existe
+      ansible.builtin.stat:
+        path: "{{ k8s_dir }}/secret.yaml"
+      register: secret_file
+
+    - name: Échoue si secret.yaml est manquant
+      ansible.builtin.fail:
+        msg: "Manque {{ k8s_dir }}/secret.yaml — copie secret.example.yaml et remplis-le"
+      when: not secret_file.stat.exists
+
+    - name: Applique les manifests Kubernetes
+      kubernetes.core.k8s:
+        state: present
+        namespace: default
+        src: "{{ k8s_dir }}/{{ item }}"
+      loop:
+        - configmap.yaml
+        - secret.yaml
+        - deployment.yaml
+        - service.yaml
+        - tmdb-sync-configmap.yaml
+        - tmdb-sync-deployment.yaml
+        - tmdb-sync-service.yaml
