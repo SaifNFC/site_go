@@ -1,0 +1,6 @@
+apiVersion: sync.letterboxd.dev/v1alpha1
+kind: FilmSync
+metadata:
+  name: inception
+spec:
+  tmdbID: 27205

@@ -1,0 +1,40 @@
+# Workaround Minikube (driver Docker) sur cette machine : le forward DNS par défaut
+# (`forward . /etc/resolv.conf`, donc via le proxy DNS interne de Docker -> DNS de la VPN pro)
+# timeoute systématiquement sur les requêtes émises par CoreDNS (A+AAAA+health-checks en
+# parallèle), alors qu'une requête directe au même resolveur depuis un pod normal fonctionne.
+# Contournement : forward direct vers des résolveurs publics.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns
+  namespace: kube-system
+data:
+  Corefile: |
+    .:53 {
+        log
+        errors
+        health {
+           lameduck 5s
+        }
+        ready
+        kubernetes cluster.local in-addr.arpa ip6.arpa {
+           pods insecure
+           fallthrough in-addr.arpa ip6.arpa
+           ttl 30
+        }
+        prometheus :9153
+        hosts {
+           192.168.49.1 host.minikube.internal
+           fallthrough
+        }
+        forward . 8.8.8.8 1.1.1.1 {
+           max_concurrent 1000
+        }
+        cache 30 {
+           disable success cluster.local
+           disable denial cluster.local
+        }
+        loop
+        reload
+        loadbalance
+    }

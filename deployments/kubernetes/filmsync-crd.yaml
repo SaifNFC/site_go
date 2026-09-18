@@ -1,0 +1,65 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: filmsyncs.sync.letterboxd.dev
+spec:
+  group: sync.letterboxd.dev
+  names:
+    kind: FilmSync
+    listKind: FilmSyncList
+    plural: filmsyncs
+    singular: filmsync
+    shortNames:
+      - fs
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: TMDB ID
+          type: integer
+          jsonPath: .spec.tmdbID
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Film ID
+          type: integer
+          jsonPath: .status.filmID
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - tmdbID
+              properties:
+                tmdbID:
+                  type: integer
+                  description: Identifiant du film sur TheMovieDB.
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: ["Pending", "Synced", "Failed"]
+                filmID:
+                  type: integer
+                titre:
+                  type: string
+                message:
+                  type: string
+                lastSyncTime:
+                  type: string
+                  format: date-time
+                observedGeneration:
+                  type: integer
+                  format: int64
