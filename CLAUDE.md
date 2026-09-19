@@ -22,7 +22,7 @@ Objectifs pédagogiques du projet (à garder en tête pour les suggestions) :
 | Auth | JWT |
 | API externe | TMDB (peuplement du catalogue de films) |
 | Conteneurisation | Docker (multi-stage build, image finale distroless non-root) |
-| Architecture | API monolithique Gin + microservice `tmdb-sync` (test du pattern microservices sur K8s : service indépendant, appelé via DNS interne `http://tmdb-sync`) |
+| Architecture | API monolithique Gin + microservice `tmdb-sync` (test du pattern microservices sur K8s : service indépendant, appelé via DNS interne `http://tmdb-sync`) + operator K8s `filmsync-operator` (CRD `FilmSync` + controller-runtime, réconciliation déclarative au-dessus de `tmdb-sync`) |
 | Orchestration | Kubernetes (Minikube en local, driver Docker / runtime containerd) |
 | Automatisation déploiement | Ansible (module `kubernetes.core.k8s`, applique les manifests K8s) + UI web Ansible Semaphore |
 | CI | GitHub Actions ou GitLab CI + `golangci-lint` (pas encore fait) |
@@ -40,15 +40,18 @@ Objectifs pédagogiques du projet (à garder en tête pour les suggestions) :
 - Ansible (`ansible/deploy.yml`) : playbook idempotent qui applique les 7 manifests K8s via `kubernetes.core.k8s` (paquets système `ansible`/`python3-kubernetes` + collection galaxy `kubernetes.core`, cf. `ansible/requirements.yml`) — équivalent de `make k8s-apply`, sans le build d'image (volontairement hors scope)
 - Ansible Semaphore (UI web pour lancer/suivre les playbooks) : binaire installé via `.deb` officiel, config/DB SQLite dans `ansible/semaphore/` (gitignoré), tourne en service `systemd --user` sur `http://localhost:3000` — Project/Repository (chemin local)/Inventory/Template configurés et testés avec succès depuis le navigateur
 - Repo poussé sur GitHub (`SaifNFC/site_go`, compte perso — identité git configurée en local au repo uniquement, cf. machine pro avec config GitLab globale)
+- **Operator Kubernetes `filmsync-operator`** (`cmd/filmsync-operator`, `internal/operator/{api/v1alpha1,controller}`) : CRD `FilmSync` (`sync.letterboxd.dev/v1alpha1`) + reconciler `sigs.k8s.io/controller-runtime`, écrits à la main (pas de kubebuilder/operator-sdk installés — types, `DeepCopyObject`, scheme enregistrés manuellement pour bien comprendre le mécanisme) — rend déclaratif ce qui était l'appel impératif `POST /admin/films/:tmdb_id/sync` : `kubectl apply -f filmsync-sample.yaml` (`spec.tmdbID`) déclenche la réconciliation, qui appelle `tmdb-sync` via le client `internal/tmdbsync` réutilisé tel quel, et écrit `status.phase/filmID/titre/observedGeneration` (pattern idempotent : ne resync que si `metadata.generation` a changé). Manifests dédiés `deployments/kubernetes/filmsync-crd.yaml`, `operator-rbac.yaml` (ServiceAccount + ClusterRole minimal get/list/watch/update/patch sur `filmsyncs`/`filmsyncs/status` + ClusterRoleBinding), `filmsync-operator-deployment.yaml` (réutilise `letterboxd-api-config` pour `TMDB_SYNC_URL`, pas de Secret nécessaire). Testé bout en bout sur Minikube : `kubectl get filmsyncs` → `Synced`, film retrouvable via `GET /films/:id` sur l'API principale. **Pas encore branché dans `ansible/deploy.yml`** (cf. "Pas fait").
+- **Fix CoreDNS sur Minikube (driver Docker)** : le forward DNS par défaut (`forward . /etc/resolv.conf`, donc vers le proxy Docker `192.168.49.1` puis les DNS de la VPN pro de la machine) timeoutait spécifiquement sur les requêtes émises par CoreDNS (probable rate-limiting/conntrack sur ce proxy sous la charge parallèle A+AAAA+health-checks de CoreDNS — un pod normal interrogeant `192.168.49.1` directement fonctionnait, `force_tcp` seul n'a pas suffi), ce qui mettait `letterboxd-api`/`tmdb-sync` en CrashLoopBackOff (connexion à Neon impossible). Corrigé en pointant CoreDNS directement sur des résolveurs publics (`forward . 8.8.8.8 1.1.1.1`). **Versionné** dans `deployments/kubernetes/coredns-patch.yaml` (ConfigMap `coredns`/`kube-system`) — à réappliquer via `make k8s-fix-coredns` après un `minikube delete` (recrée le cluster avec la ConfigMap CoreDNS par défaut).
 
 **Pas fait :**
 - Résilience de l'appel API principale → `tmdb-sync` : pas de retry/timeout configurable ni de circuit breaker (une panne de `tmdb-sync` remonte en 500 sèche)
 - NetworkPolicy restreignant l'accès à `tmdb-sync` (aujourd'hui joignable par n'importe quel pod du cluster)
-- Tests unitaires sur la couche services (seulement un test sur le client TMDB, rien sur `SyncService`)
+- Tests unitaires sur la couche services (seulement un test sur le client TMDB, rien sur `SyncService`), et rien sur le reconciler `filmsync-operator` (testable avec `sigs.k8s.io/controller-runtime/pkg/client/fake` + un `httptest.Server` simulant `tmdb-sync`)
 - Pages HTML login/register (JSON endpoints déjà là, pas de vue)
 - CI (lint/test/build automatisés)
-- Ansible : build d'image et démarrage Minikube restent hors playbook (manuel via `make k8s-image*`), pas de rôle dédié pour templater `secret.yaml`
-- Prometheus/Grafana
+- Ansible : build d'image et démarrage Minikube restent hors playbook (manuel via `make k8s-image*`), pas de rôle dédié pour templater `secret.yaml` ; les manifests `filmsync-operator` (CRD/RBAC/Deployment) ne sont pas encore dans la liste `loop` de `ansible/deploy.yml`
+- Prometheus/Grafana (le manager `filmsync-operator` a ses métriques désactivées pour l'instant — `Metrics.BindAddress: "0"` dans `cmd/filmsync-operator/main.go` — à rebrancher quand Prometheus sera en place)
+- Finalizer sur `FilmSync` : supprimer une CR ne supprime pas le film en DB (sync additif à sens unique, volontaire en v1)
 
 ## Structure du repo
 ```
@@ -56,7 +59,9 @@ Objectifs pédagogiques du projet (à garder en tête pour les suggestions) :
 ├── cmd/
 │   ├── api/
 │   │   └── main.go
-│   └── tmdb-sync/         # microservice de sync TMDB, service Gin autonome
+│   ├── tmdb-sync/         # microservice de sync TMDB, service Gin autonome
+│   │   └── main.go
+│   └── filmsync-operator/  # operator K8s (manager controller-runtime), autonome
 │       └── main.go
 ├── internal/
 │   ├── config/          # chargement config (env vars, .env), partagé par les deux binaires
@@ -68,6 +73,9 @@ Objectifs pédagogiques du projet (à garder en tête pour les suggestions) :
 │   ├── services/           # logique métier (ex: sync_service.go, utilisé par tmdb-sync)
 │   ├── tmdb/               # client API TMDB (utilisé par tmdb-sync)
 │   ├── tmdbsync/           # client HTTP interne API principale -> microservice tmdb-sync
+│   ├── operator/
+│   │   ├── api/v1alpha1/   # types CRD FilmSync (écrits à la main, pas de controller-gen)
+│   │   └── controller/     # FilmSyncReconciler
 │   └── views/              # composants templ (.templ + .go générés, gitignorés)
 ├── web/
 │   └── static/            # CSS (Pico.css auto-hébergé) servi via router.Static
@@ -75,7 +83,8 @@ Objectifs pédagogiques du projet (à garder en tête pour les suggestions) :
 ├── deployments/
 │   ├── docker/
 │   │   ├── Dockerfile
-│   │   └── Dockerfile.tmdb-sync
+│   │   ├── Dockerfile.tmdb-sync
+│   │   └── Dockerfile.filmsync-operator
 │   ├── kubernetes/
 │   │   ├── deployment.yaml
 │   │   ├── service.yaml
@@ -84,7 +93,11 @@ Objectifs pédagogiques du projet (à garder en tête pour les suggestions) :
 │   │   ├── secret.yaml          # vraies valeurs, gitignoré
 │   │   ├── tmdb-sync-deployment.yaml
 │   │   ├── tmdb-sync-service.yaml
-│   │   └── tmdb-sync-configmap.yaml
+│   │   ├── tmdb-sync-configmap.yaml
+│   │   ├── filmsync-crd.yaml            # CustomResourceDefinition FilmSync
+│   │   ├── operator-rbac.yaml           # ServiceAccount + ClusterRole + ClusterRoleBinding
+│   │   ├── filmsync-operator-deployment.yaml
+│   │   └── filmsync-sample.yaml         # CR d'exemple pour tester (pas appliquée par make k8s-apply)
 │   └── docker-compose.yml   # service api uniquement ; tmdb-sync se lance en local (host.docker.internal)
 ├── ansible/
 │   ├── requirements.yml   # dépendance collection galaxy kubernetes.core
@@ -124,14 +137,22 @@ make test
 make up / make down / make logs
 
 # Kubernetes (sur un cluster Minikube déjà démarré : `minikube start --driver=docker`)
-make k8s-image          # build l'image de l'API dans le docker daemon de Minikube
-make k8s-image-sync     # build l'image du microservice tmdb-sync
-make k8s-apply          # applique configmaps/secret/deployments/services (API + tmdb-sync)
-make k8s-status         # état des pods/deployment/service de l'API
-make k8s-status-sync    # état des pods/deployment/service de tmdb-sync
-make k8s-logs           # logs du pod de l'API
-make k8s-logs-sync      # logs du pod tmdb-sync
-make k8s-port-forward   # expose le service API sur http://localhost:8081
+make k8s-image           # build l'image de l'API dans le docker daemon de Minikube
+make k8s-image-sync      # build l'image du microservice tmdb-sync
+make k8s-image-operator  # build l'image du filmsync-operator
+make k8s-apply           # applique configmaps/secret/deployments/services/CRD/RBAC (API + tmdb-sync + filmsync-operator)
+make k8s-status          # état des pods/deployment/service de l'API
+make k8s-status-sync     # état des pods/deployment/service de tmdb-sync
+make k8s-status-operator # état du pod/deployment de filmsync-operator + liste des FilmSync
+make k8s-logs            # logs du pod de l'API
+make k8s-logs-sync       # logs du pod tmdb-sync
+make k8s-logs-operator   # logs du pod filmsync-operator
+make k8s-port-forward    # expose le service API sur http://localhost:8081
+make k8s-fix-coredns     # corrige le forward DNS de CoreDNS (proxy Docker/VPN qui timeout) — à relancer après un minikube delete
+
+# Tester le pattern operator une fois déployé
+kubectl apply -f deployments/kubernetes/filmsync-sample.yaml
+kubectl get filmsyncs -w
 
 # Ansible (déploiement K8s déclaratif, alternative à k8s-apply)
 make ansible-setup      # sudo apt install ansible python3-kubernetes + collection kubernetes.core
