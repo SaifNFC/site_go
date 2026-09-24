@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -37,8 +38,14 @@ func (r *FilmSyncReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	film, err := r.SyncClient.Sync(fs.Spec.TMDBID)
 	if err != nil {
 		fs.Status.Phase = syncv1alpha1.PhaseFailed
-		fs.Status.Message = err.Error()
 		fs.Status.ObservedGeneration = fs.Generation
+		meta.SetStatusCondition(&fs.Status.Conditions, metav1.Condition{
+			Type:               syncv1alpha1.ConditionTypeSynced,
+			Status:             metav1.ConditionFalse,
+			Reason:             "SyncFailed",
+			Message:            err.Error(),
+			ObservedGeneration: fs.Generation,
+		})
 		if statusErr := r.Status().Update(ctx, &fs); statusErr != nil {
 			logger.Error(statusErr, "échec de la mise à jour du status après un échec de sync")
 		}
@@ -46,13 +53,17 @@ func (r *FilmSyncReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, fmt.Errorf("sync film tmdb_id=%d: %w", fs.Spec.TMDBID, err)
 	}
 
-	now := metav1.Now()
 	fs.Status.Phase = syncv1alpha1.PhaseSynced
 	fs.Status.FilmID = &film.ID
 	fs.Status.Titre = film.Titre
-	fs.Status.Message = ""
-	fs.Status.LastSyncTime = &now
 	fs.Status.ObservedGeneration = fs.Generation
+	meta.SetStatusCondition(&fs.Status.Conditions, metav1.Condition{
+		Type:               syncv1alpha1.ConditionTypeSynced,
+		Status:             metav1.ConditionTrue,
+		Reason:             "SyncSucceeded",
+		Message:            fmt.Sprintf("film %q synchronisé (id=%d)", film.Titre, film.ID),
+		ObservedGeneration: fs.Generation,
+	})
 
 	if err := r.Status().Update(ctx, &fs); err != nil {
 		return ctrl.Result{}, fmt.Errorf("mise à jour status: %w", err)

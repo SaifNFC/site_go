@@ -32,14 +32,17 @@ const (
 	PhaseFailed  FilmSyncPhase = "Failed"
 )
 
+// ConditionTypeSynced est le seul type de condition exposé pour l'instant :
+// True = dernier sync réussi, False = dernier sync en échec.
+const ConditionTypeSynced = "Synced"
+
 // FilmSyncStatus décrit l'état observé, mis à jour uniquement par le controller.
 type FilmSyncStatus struct {
-	Phase              FilmSyncPhase `json:"phase,omitempty"`
-	FilmID             *uint         `json:"filmID,omitempty"`
-	Titre              string        `json:"titre,omitempty"`
-	Message            string        `json:"message,omitempty"`
-	LastSyncTime       *metav1.Time  `json:"lastSyncTime,omitempty"`
-	ObservedGeneration int64         `json:"observedGeneration,omitempty"`
+	Phase              FilmSyncPhase      `json:"phase,omitempty"`
+	FilmID             *uint              `json:"filmID,omitempty"`
+	Titre              string             `json:"titre,omitempty"`
+	ObservedGeneration int64              `json:"observedGeneration,omitempty"`
+	Conditions         []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // FilmSync est la ressource custom représentant la synchronisation d'un film TMDB.
@@ -82,8 +85,9 @@ func (in *FilmSyncStatus) DeepCopyInto(out *FilmSyncStatus) {
 		out.FilmID = new(uint)
 		*out.FilmID = *in.FilmID
 	}
-	if in.LastSyncTime != nil {
-		out.LastSyncTime = in.LastSyncTime.DeepCopy()
+	if in.Conditions != nil {
+		out.Conditions = make([]metav1.Condition, len(in.Conditions))
+		copy(out.Conditions, in.Conditions)
 	}
 }
 
